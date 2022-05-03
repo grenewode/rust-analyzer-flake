@@ -35,16 +35,15 @@
           cargoBuildOptions = opts: [ "-p 'rust-analyzer'" ] ++ opts;
           cargoTestOptions = opts: [ "-p 'rust-analyzer'" ] ++ opts;
           cargoDocOptions = opts: [ "-p 'rust-analyzer'" ] ++ opts;
+
+          # If we don't do this, naersk will grab the dependencies
+          # of *all* the crates in the workspace, and some of them
+          # are broken and cannot be built, apparently.
           singleStep = true;
         };
-        defaultPackageName = (builtins.parseDrvName defaultPackage.name).name;
       in rec {
         # `nix build`
-        packages = {
-          ${defaultPackageName} = defaultPackage;
-        } // {
-          inherit rust;
-        };
+        packages.rust-analyzer = defaultPackage;
         inherit defaultPackage;
 
         # `nix run`
