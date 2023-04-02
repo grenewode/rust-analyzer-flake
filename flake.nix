@@ -13,7 +13,8 @@
           overlays = [ (import rust-overlay) ];
         };
 
-        inherit (pkgs.lib) importJSON removeSuffix pipe;
+        inherit (pkgs.lib)
+          importJSON removeSuffix pipe mapAttrsToList concatStrings removePrefix;
         inherit (pkgs.lib.filesystem) listFilesRecursive;
 
         rust = pkgs.rust-bin.stable.latest.minimal;
@@ -36,7 +37,7 @@
               pipe releaseFile [ builtins.baseNameOf (removeSuffix ".json") ];
           in "rust-analyzer-${version}";
           value = mkRelease (importJSON releaseFile);
-        }) (listFilesRecursive ./releases));
+        }) (listFilesRecursive ./.releases));
 
         defaultPackage = releases.rust-analyzer-nightly;
 
@@ -45,6 +46,13 @@
         packages = releases // {
           rust-analyzer = defaultPackage;
           default = defaultPackage;
+
+          _cachix_all = pkgs.runCommand "_cachix_all" { } ''
+            mkdir -p $out
+            ${concatStrings (mapAttrsToList (name: drv: ''
+              ln -s ${drv} $out/${removePrefix "rust-analyzer-" name}
+            '') releases)}
+          '';
         };
 
         inherit defaultPackage;
