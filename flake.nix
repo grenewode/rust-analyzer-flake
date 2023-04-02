@@ -2,48 +2,51 @@
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
     naersk.url = "github:nmattia/naersk";
-    mozillapkgs = {
-      url = "github:mozilla/nixpkgs-mozilla";
-      flake = false;
-    };
-    rust-analyzer-src = {
-      url = "github:rust-lang/rust-analyzer/2022-05-02";
-      flake = false;
-    };
+    rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
-  outputs =
-    { self, nixpkgs, flake-utils, naersk, mozillapkgs, rust-analyzer-src }:
+  outputs = { self, nixpkgs, flake-utils, naersk, rust-overlay }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
-        mozilla = pkgs.callPackage (mozillapkgs + "/package-set.nix") { };
-        rust = (mozilla.rustChannelOf {
-          date = "2022-05-02";
-          channel = "nightly";
-          sha256 = "sha256-U7DTa2ChZSiCbCYEI0yMCZ/ioSE1MRqFogMPiB7u/ts=";
-        }).rust;
-        naersk-lib = naersk.lib."${system}".override {
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ (import rust-overlay) ];
+        };
+
+        inherit (pkgs.lib) importJSON removeSuffix pipe;
+        inherit (pkgs.lib.filesystem) listFilesRecursive;
+
+        rust = pkgs.rust-bin.stable.latest.minimal;
+
+        naersk' = pkgs.callPackage naersk {
           cargo = rust;
           rustc = rust;
         };
-        defaultPackage = naersk-lib.buildPackage {
-          pname = "rust-analyzer";
-          version = "2022-05-02";
 
-          src = rust-analyzer-src;
-          cargoBuildOptions = opts: [ "-p 'rust-analyzer'" ] ++ opts;
-          cargoTestOptions = opts: [ "-p 'rust-analyzer'" ] ++ opts;
-          cargoDocOptions = opts: [ "-p 'rust-analyzer'" ] ++ opts;
+        mkRelease = release:
+          pkgs.callPackage ./package.nix {
+            inherit release;
 
-          # If we don't do this, naersk will grab the dependencies
-          # of *all* the crates in the workspace, and some of them
-          # are broken and cannot be built, apparently.
-          singleStep = true;
-        };
+            naersk = naersk';
+          };
+
+        releases = builtins.listToAttrs (map (releaseFile: {
+          name = let
+            version =
+              pipe releaseFile [ builtins.baseNameOf (removeSuffix ".json") ];
+          in "rust-analyzer-${version}";
+          value = mkRelease (importJSON releaseFile);
+        }) (listFilesRecursive ./releases));
+
+        defaultPackage = releases.rust-analyzer-nightly;
+
       in rec {
         # `nix build`
-        packages.rust-analyzer = defaultPackage;
+        packages = releases // {
+          rust-analyzer = defaultPackage;
+          default = defaultPackage;
+        };
+
         inherit defaultPackage;
 
         # `nix run`
