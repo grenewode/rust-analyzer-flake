@@ -50,4 +50,4 @@ jobs:
         with:
           name: rust-analyzer-flake
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: 'nix build .#_cachix_all'
+      - run: 'nix build .#_cachix_all' --verbose --print-build-logs
