@@ -1,10 +1,8 @@
 name: cachix
 
 on:
+  workflow_call:
   workflow_dispatch:
-  push:
-    branches:
-      - 'main'
 
 jobs:
   cachix:

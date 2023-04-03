@@ -18,6 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+          ref: main
+
       - uses: cachix/install-nix-action@v20
         with:
           nix_path: nixpkgs=channel:nixos-unstable
@@ -25,8 +29,23 @@ jobs:
       - name: Update releases
         run: ./update.sh
 
-      - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v4
+      - name: Commit Changes
+        id: commit
+        continue-on-error: true
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add .releases
+          git commit -m "update releases"
+
+      - name: Push changes
+        if: steps.commit.outcome == 'success'
+        uses: ad-m/github-push-action@master
         with:
-          commit_message: update to latest releases
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
+          
+      - name: build
+        if: steps.commit.outcome == 'success'
+        uses: ./.github/workflows/cachix.yml
           
