@@ -1,20 +1,13 @@
-# This is a basic workflow to help you get started with Actions
+name: update-and-cache
 
-name: update-releases
-
-# Controls when the workflow will run
 on:
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
   schedule:
     - cron: '0 0 * * *'
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   update-releases:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -44,8 +37,17 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: main
-          
-      - name: build
-        if: steps.commit.outcome == 'success'
-        uses: ./.github/workflows/cachix.yml
-          
+  cachix:
+    runs-on: ubuntu-latest
+    needs:
+      - update-releases
+    steps:
+      - uses: actions/checkout@v3
+      - uses: cachix/install-nix-action@v20
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: cachix/cachix-action@v12
+        with:
+          name: rust-analyzer-flake
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - run: 'nix build .#_cachix_all'
