@@ -51,4 +51,17 @@ jobs:
           name: rust-analyzer-flake
           extraPullNames: nix-community
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-      - run: 'nix build .#_cachix_all --verbose --print-build-logs'
+          skipPush: true
+      - name: Compile And Push
+        env:
+          CACHIX_AUTH_TOKEN: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+        run: |
+          declare -a releases
+          for release in .releases/*;
+          do
+            release="$(basename "$release")"
+            releases+=( ".#rust-analyzer-${release%.*}" )
+          done
+
+          nix build --keep-going --print-out-paths "${releases[@]}" | cachix push rust-analyzer-flake
+            

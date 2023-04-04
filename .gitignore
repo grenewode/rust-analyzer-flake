@@ -3,4 +3,8 @@
 *.log
 tmp/
 
-/result
+/result*
+
+\#*
+.\#*
+
