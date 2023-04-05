@@ -46,20 +46,13 @@
         packages = releases // {
           rust-analyzer = defaultPackage;
           default = defaultPackage;
-
-          _cachix_all = pkgs.runCommand "_cachix_all" { } ''
-            mkdir -p $out
-            ${concatStrings (mapAttrsToList (name: drv: ''
-              ln -s ${drv} $out/${removePrefix "rust-analyzer-" name}
-            '') releases)}
-          '';
         };
 
         inherit defaultPackage;
 
         # `nix run`
         apps =
-          builtins.mapAttrs (name: drv: flake-utils.lib.mkApp { inherit drv; });
+          builtins.mapAttrs (name: drv: flake-utils.lib.mkApp { inherit drv; }) releases;
         defaultApp = flake-utils.lib.mkApp { drv = defaultPackage; };
       });
 }

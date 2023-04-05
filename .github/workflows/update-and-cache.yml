@@ -9,6 +9,8 @@ on:
 jobs:
   update-releases:
     runs-on: ubuntu-latest
+    outputs:
+      release-files: ${{ steps.find-releases.outputs.release-files }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -30,17 +32,26 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add .releases
           git commit -m "update releases"
-
       - name: Push changes
         if: steps.commit.outcome == 'success'
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: main
-  cachix:
+      - name: Find Releases
+        id: find-releases
+        run: |
+          output=$(jq -n --compact-output --args '$ARGS.positional' .releases/*)
+          echo "release-files=${output}" >> $GITHUB_OUTPUT
+  
+  update-cachix:
     runs-on: ubuntu-latest
     needs:
       - update-releases
+    strategy:
+      max-parallel: 24
+      matrix:
+        release-file: ${{ fromJson(needs.update-releases.outputs.release-files) }}
     steps:
       - uses: actions/checkout@v3
       - uses: cachix/install-nix-action@v20
@@ -55,13 +66,9 @@ jobs:
       - name: Compile And Push
         env:
           CACHIX_AUTH_TOKEN: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          RELEASE_FILE: ${{ matrix.release-file }}
         run: |
-          declare -a releases
-          for release in .releases/*;
-          do
-            release="$(basename "$release")"
-            releases+=( ".#rust-analyzer-${release%.*}" )
-          done
-
-          nix build --keep-going --print-out-paths "${releases[@]}" | cachix push rust-analyzer-flake
+          RELEASE_FILE=$(basename $RELEASE_FILE)
+          
+          nix build --keep-going --print-out-paths ".#rust-analyzer-${RELEASE_FILE%.*}" | cachix push rust-analyzer-flake
             
